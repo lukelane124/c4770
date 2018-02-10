@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define PORT 5555
 #define MAX_BUFFER_SIZE 1024
@@ -39,19 +40,37 @@ const char webpage[] =
 void* connectHandler(void* args) {
   int clisock = *((int*) args);
   //int clisock = (int) args;
-  FILE *fp;
-  if ((fp = fdopen(clisock, "r+")) == NULL) {
-    printf("Error opening fd for socket passed from listening thread.");
-    exit(-2);
-  }
+  // FILE *fp;
+  // if ((fp = fdopen(clisock, "r+")) == NULL) {
+  //   printf("Error opening fd for socket passed from listening thread.");
+  //   exit(-2);
+  // }
+
+
   size_t r_msg_size = 1024;
   char* r_msg = (char *) malloc(1024*sizeof(char));
-  while(getline(&r_msg, &r_msg_size, fp) > 1) {
-    printf("Size: %i\nMSG: %s",r_msg_size, r_msg);
+  int bytesRead = 0;
+  while(1) {
+    bytesRead = read(clisock, r_msg, r_msg_size);
+    if (bytesRead < 0) {
+      printf("Error reading from socket.\n");
+      exit(-2);
+    } else if(bytesRead < r_msg_size) {
+      printf("Size: %i\nMSG: %s\n", bytesRead, r_msg);
+      bytesRead = 0;
+      //break;
+    } else {
+      printf("Header toooo long, failed with too large an input.\n");
+      exit(-3);
+    }
+    printf("Made it past \n");
+    write(clisock, webpage, sizeof(webpage)-1);
+    break;
   }
+  shutdown(clisock, 2);
   //fputs(webpage, fp);
 
-  fclose(fp);
+  //fclose(fp);
   pthread_exit(NULL);
 }
 
@@ -139,7 +158,11 @@ struct sockaddr {
 */
   serv_addr.sin_family = AF_INET;                 //Set address family(ipv4)
   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  //Set address header for any incomming address.
-  serv_addr.sin_port = htons(PORT);               //Set listening port.
+  if (argc > 1) {
+    serv_addr.sin_port = htons(atoi(argv[2]));
+  }else { 
+    serv_addr.sin_port = htons(PORT);               //Set listening port.
+  }
   
 
   //bind our new "listening socket" with the params set above.
@@ -164,5 +187,6 @@ struct sockaddr {
       exit(-1);
     }
     handleConnect(newsockfd);
+    //exit(EXIT_SUCCESS);
   }
 }
