@@ -18,6 +18,9 @@
 
 #define PORT 5555
 #define MAX_BUFFER_SIZE 1024
+#define HTML_FILE 0
+#define PNG_FILE  1
+#define BINARY_FILE 2
 
 const char webpage[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
@@ -37,10 +40,11 @@ void* connectHandler(void* args) {
   int returnZeroCount = 0;
 whileloop:
   while(cont) {
+    printf("\n\n\n\n\n\nNew Request:\n\n");
+    int filetype = -1;
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
       printf("Error reading from socket.\n");
-      //close(clisock);
       pthread_exit(NULL);
     } else if(bytesRead == 0) {
       if (returnZeroCount > 20) 
@@ -78,21 +82,22 @@ whileloop:
         char* saveptr;
         file = strtok_r(str, delim, &saveptr);
         char fileName[256] = {0};
-        /*for (int i = 1; (file[i-1] != '\0')&&(i < 256); i++) {
-          fileName[i-1]=file[i];
-        }*/
+
         requestedFD = open(file, O_RDONLY);
+        char* extension = strrchr(file, '.');
         char* kvp = strtok_r(0, delim, &saveptr);
-        printf("requested file:%s\nKVPtoken: %s\n",file, kvp);
+        printf("requested file:%s\nKVPtoken: %s\nFileExtension: %s\n",file, kvp, extension);
+        
     }
 
 
     if (requestedFD == -1){
       printf("File Not found..\n");
       write(clisock, fofPage, sizeof(fofPage)-1);
-      //close(clisock);
-      //pthread_exit(NULL);
     }
+
+
+
     struct stat st;
     fstat(requestedFD, &st);
     write(clisock, htmlHeader, sizeof(htmlHeader)-1);
