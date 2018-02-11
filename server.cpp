@@ -15,7 +15,7 @@
 #define MAX_BUFFER_SIZE 1024
 
 const char webpage[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>This is a test...</title></head><body>Hello world</body></html>\r\n\r\n\0";
+"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
 
 void* connectHandler(void* args) {
   int clisock = *((int*) args);
@@ -37,17 +37,17 @@ whileloop:
       returnZeroCount++;
       continue;
     } else if(bytesRead < r_msg_size) {
-      printf("Size: %i\nMSG: %s\n", bytesRead, r_msg);
+      
     } else {
       printf("Header toooo long, failed with too large an input.\n");
       exit(-3);
     }
-    printf("Made it past \n");
+   
     char* str[256] = {0};
     int count = sscanf(r_msg, "GET %s %*s\n", &str);
    
     write(clisock, webpage, sizeof(webpage)-1);
-    printf("Count: %i\nString: %s\n", count, str);
+    
     memset(r_msg, 0, r_msg_size);
     memset(str, 0, 256);
     sleep(1);
@@ -58,7 +58,7 @@ whileloop:
 }
 
 void handleConnect(int clisock) {
-  printf("Inside handleConnect\n");
+  
   pthread_attr_t attribs;
   pthread_t thread;
   pthread_attr_init(&attribs);
@@ -88,11 +88,11 @@ int main(int argc, char* argv[]) {
 
   //bind our new "listening socket" with the params set above.
   while (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) { 
-    //printf("Error binding Sock to addr.");
-    sleep(1);
+    printf("Error binding Sock to addr.");
+    sleep(10);
     //exit(-1);
   }
-  printf("Binding successfull\n");
+  printf("Binding to listeing port successfull\n");
   //Tell OS we would like to start listening on this socket, we're not going to create a connection to a specific address.
   //  We want to keep this open so that we can be available for anyone who wants to talk.
   //Second param is "backlog" of connections the OS will pool for us.
