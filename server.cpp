@@ -41,33 +41,41 @@ whileloop:
       returnZeroCount++;
       continue;
     } else if(bytesRead < r_msg_size) {
-      
+      printf("%s\n", r_msg);
     } else {
       printf("Header toooo long, failed with too large an input.\n");
       exit(-3);
     }
    
     char str[256] = {0};
+    char* file;
     int count = sscanf(r_msg, "GET %s %*s\n", &str);
     printf("%s\n", str);
     int requestedFD;
     printf("Requested File: %s\n", str);
-    printf("Match: %i", strcmp("/", str), 20);
+    printf("Match: %i\n", strcmp("/", str), 20);
     if(strcmp("/", str) == 0) {
       printf("root requested\n");
       write(clisock, webpage, sizeof(webpage)-1);
     } else {
-        requestedFD = open(str, O_RDONLY);
-        printf("file requested on /\n");
+        const char delim[1] =  {'?'};
+        file = strtok(str, delim);
+        requestedFD = open(file, O_RDONLY);
+        char* kvp = strtok(0, delim);
+        printf("requested file:%s\nKVPtoken: %s\n",file, kvp);
     }
 
 
     if (requestedFD == -1){
       printf("File Not found..\n");
       write(clisock, fofPage, sizeof(fofPage)-1);
-      close(clisock);
-      pthread_exit(NULL);
+      //close(clisock);
+      //pthread_exit(NULL);
     }
+
+    //char kvp[129] = {0};
+    
+    printf("Count: %i\nkvpString: %s\n",count, file);
 
     //sendfile(clisock, requestedFD, 0, 0);
     
