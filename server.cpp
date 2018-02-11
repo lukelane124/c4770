@@ -49,28 +49,41 @@ void* connectHandler(void* args) {
 
   size_t r_msg_size = 1024;
   char* r_msg = (char *) malloc(1024*sizeof(char));
-  int bytesRead = 0;
+  int bytesRead = -5;
   bool cont = true;
   while(cont) {
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
       printf("Error reading from socket.\n");
-      exit(-2);
+      pthread_exit(NULL);
     } else if(bytesRead < r_msg_size) {
       printf("Size: %i\nMSG: %s\n", bytesRead, r_msg);
      // bytesRead = 0;
       //break;
+    } else if(bytesRead == 0) {
+      sleep(.3);     
     } else {
       printf("Header toooo long, failed with too large an input.\n");
       exit(-3);
     }
+    cont = true;
     printf("Made it past \n");
+    /*char* parsable_msg = (char*) malloc(sizeof(r_msg));
+    for (int i = 0; (i < r_msg_size)||(r_msg[i] == '\0'); i++) {
+      parsable_msg[i] = r_msg[i];
+    }
+    int offset = scanf(parsable_msg, "^GET");*/
+    int offset = scanf(r_msg, "^GET");
+    printf("Offset: %i\n", offset);
+    //free(parsable_msg);
     write(clisock, webpage, sizeof(webpage)-1);
     //memset(void *s, int c, size_t n)
     // sets n bytes indexed starting at location s, with value c.
     memset(r_msg, 0, r_msg_size);
+    sleep(5);
+   // shutdown(clisock, 2);
   }
-  shutdown(clisock, 2);
+  
   //fputs(webpage, fp);
 
   //fclose(fp);
@@ -163,18 +176,19 @@ struct sockaddr {
   serv_addr.sin_family = AF_INET;                 //Set address family(ipv4)
   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  //Set address header for any incomming address.
   if (argc > 1) {
-    serv_addr.sin_port = htons(atoi(argv[2]));
+    serv_addr.sin_port = htons(htonl(atoi(argv[2])));
   }else { 
     serv_addr.sin_port = htons(PORT);               //Set listening port.
   }
   
 
   //bind our new "listening socket" with the params set above.
-  if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) { 
-    printf("Error binding Sock to addr.");
-    exit(-1);
+  while (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) { 
+    //printf("Error binding Sock to addr.");
+    sleep(1);
+    //exit(-1);
   }
-
+  printf("Binding successfull\n");
   //Tell OS we would like to start listening on this socket, we're not going to create a connection to a specific address.
   //  We want to keep this open so that we can be available for anyone who wants to talk.
   //Second param is "backlog" of connections the OS will pool for us.
@@ -191,6 +205,5 @@ struct sockaddr {
       exit(-1);
     }
     handleConnect(newsockfd);
-    //exit(EXIT_SUCCESS);
   }
 }
