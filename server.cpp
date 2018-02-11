@@ -52,8 +52,6 @@ whileloop:
     int count = sscanf(r_msg, "GET %s %*s\n", &str);
     printf("%s\n", str);
     int requestedFD;
-    printf("Requested File: %s\n", str);
-    printf("Match: %i\n", strcmp("/", str), 20);
     if(strcmp("/", str) == 0) {
       printf("root requested\n");
       write(clisock, webpage, sizeof(webpage)-1);
@@ -69,20 +67,14 @@ whileloop:
     if (requestedFD == -1){
       printf("File Not found..\n");
       write(clisock, fofPage, sizeof(fofPage)-1);
-      //close(clisock);
-      //pthread_exit(NULL);
+      close(clisock);
+      pthread_exit(NULL);
     }
-
-    //char kvp[129] = {0};
     
-    printf("Count: %i\nkvpString: %s\n",count, file);
-
     //sendfile(clisock, requestedFD, 0, 0);
     
     memset(r_msg, 0, r_msg_size);
     memset(str, 0, 256);
-    sleep(1);
-   // shutdown(clisock, 2);
   }
   close(clisock);
   pthread_exit(NULL);
