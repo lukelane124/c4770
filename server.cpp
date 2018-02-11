@@ -10,12 +10,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/sendfile.h>
 
 #define PORT 5555
 #define MAX_BUFFER_SIZE 1024
 
 const char webpage[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
+const char fofPage[] =
+"HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>404 Not Found</title></head><body><h1>Error 404</h1><br>File not found. Closing connection</body></html>\r\n\r\n\0";
+
 
 void* connectHandler(void* args) {
   int clisock = *((int*) args);
@@ -43,17 +47,36 @@ whileloop:
       exit(-3);
     }
    
-    char* str[256] = {0};
+    char str[256] = {0};
     int count = sscanf(r_msg, "GET %s %*s\n", &str);
-   
-    write(clisock, webpage, sizeof(webpage)-1);
+    printf("%s\n", str);
+    int requestedFD;
+    printf("Requested File: %s\n", str);
+    printf("Match: %i", strcmp("/", str), 20);
+    if(strcmp("/", str) == 0) {
+      printf("root requested\n");
+      write(clisock, webpage, sizeof(webpage)-1);
+    } else {
+        requestedFD = open(str, O_RDONLY);
+        printf("file requested on /\n");
+    }
+
+
+    if (requestedFD == -1){
+      printf("File Not found..\n");
+      write(clisock, fofPage, sizeof(fofPage)-1);
+      close(clisock);
+      pthread_exit(NULL);
+    }
+
+    //sendfile(clisock, requestedFD, 0, 0);
     
     memset(r_msg, 0, r_msg_size);
     memset(str, 0, 256);
     sleep(1);
    // shutdown(clisock, 2);
   }
-  shutdown(clisock, 2);
+  close(clisock);
   pthread_exit(NULL);
 }
 
@@ -88,7 +111,7 @@ int main(int argc, char* argv[]) {
 
   //bind our new "listening socket" with the params set above.
   while (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) { 
-    printf("Error binding Sock to addr.");
+    printf("Error binding Sock to addr.\n");
     sleep(10);
     //exit(-1);
   }
