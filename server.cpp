@@ -35,7 +35,7 @@
 // }; 
 
 const char webpage[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>This is a test...</title></head><body>Hello world</body></html>\r\n\0";
+"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>This is a test...</title></head><body>Hello world</body></html>\r\n\r\n\0";
 
 void* connectHandler(void* args) {
   int clisock = *((int*) args);
@@ -51,39 +51,47 @@ void* connectHandler(void* args) {
   char* r_msg = (char *) malloc(1024*sizeof(char));
   int bytesRead = -5;
   bool cont = true;
+  int returnZeroCount = 0;
+whileloop:
   while(cont) {
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
       printf("Error reading from socket.\n");
       pthread_exit(NULL);
+    } else if(bytesRead == 0) {
+      if (returnZeroCount > 20) 
+        cont = false;
+      sleep(.3);   
+      returnZeroCount++;
+      continue;
     } else if(bytesRead < r_msg_size) {
       printf("Size: %i\nMSG: %s\n", bytesRead, r_msg);
      // bytesRead = 0;
       //break;
-    } else if(bytesRead == 0) {
-      sleep(.3);     
     } else {
       printf("Header toooo long, failed with too large an input.\n");
       exit(-3);
     }
-    cont = true;
     printf("Made it past \n");
     /*char* parsable_msg = (char*) malloc(sizeof(r_msg));
     for (int i = 0; (i < r_msg_size)||(r_msg[i] == '\0'); i++) {
       parsable_msg[i] = r_msg[i];
     }
-    int offset = scanf(parsable_msg, "^GET");*/
-    int offset = scanf(r_msg, "^GET");
-    printf("Offset: %i\n", offset);
-    //free(parsable_msg);
+    */
+    char* str[256] = {0};
+    int count = sscanf(r_msg, "GET %s %*s\n", &str);
+   
     write(clisock, webpage, sizeof(webpage)-1);
+    //free(parsable_msg);
+    printf("Count: %i\nString: %s\n", count, str);
     //memset(void *s, int c, size_t n)
     // sets n bytes indexed starting at location s, with value c.
     memset(r_msg, 0, r_msg_size);
-    sleep(5);
+    memset(str, 0, 256);
+    sleep(1);
    // shutdown(clisock, 2);
   }
-  
+  shutdown(clisock, 2);
   //fputs(webpage, fp);
 
   //fclose(fp);
