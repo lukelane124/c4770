@@ -21,6 +21,7 @@
 #define HTML_FILE 0
 #define PNG_FILE  1
 #define BINARY_FILE 2
+#define LUA_FILE  3
 
 const char webpage[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
@@ -29,7 +30,44 @@ const char timepage[] =
 const char fofPage[] =
 "HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>404 Not Found</title></head><body><h1>Error 404</h1><br>File not found. Closing connection</body></html>\r\n\r\n\0";
 const char htmlHeader[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n";
+"HTTP/1.1 200 OK\r\nContent-Type: text/html; \r\n\r\n";
+const char pngHeader[] =
+"HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\nContent-Type: image/png\r\nContent-Length: %i\r\n\r\n";
+const char textHeader[] =
+"HTTP/1.1 200 OK\r\nContent-Type: text/text; \r\n\r\n";
+
+int extensionHash(char* str) {
+  if (strncmp(str, ".html", 5) == 0){
+    printf("HTML_FILE\n");
+    return HTML_FILE;
+  } else if (strncmp(str, ".png", 4) == 0){
+    printf("PNG_FILE\n");
+    return PNG_FILE;
+  } else if (strncmp(str, ".bin", 4) == 0) {
+    printf("BINARY_FILE\n");
+    return BINARY_FILE;
+  } else if (strncmp(str, ".lua", 4) == 0){
+    printf("LUA_FILE\n");
+    return LUA_FILE;
+  } else {
+    return -1;
+  }
+}
+
+bool sendFileOverSocket(int fd, int socket, const char* formatHeader) {
+  struct stat st;
+  fstat(fd, &st);
+  char responseHeader[sizeof(formatHeader) + 120] = {0};
+  sprintf(responseHeader, formatHeader, st.st_size);
+  printf("FORMAT HEADER:\n%s\n", responseHeader);
+  int sentBytes = 0;
+  long int offset = 0;
+  int remainData = st.st_size;
+  /*while(((sentBytes = sendfile(socket, fd, &offset, remainData)) > 0 && (remainData -= sentBytes) > 0)) {
+    printf("Server sent %d bytes from the file, offset is now: %d, and, %d remains to be sent.\n", sentBytes, offset, remainData);
+  }*/
+ return true; 
+}
 
 void* connectHandler(void* args) {
   int clisock = *((int*) args);
@@ -40,7 +78,7 @@ void* connectHandler(void* args) {
   int returnZeroCount = 0;
 whileloop:
   while(cont) {
-    printf("\n\n\n\n\n\nNew Request:\n\n");
+    printf("New Request:\n\n");
     int filetype = -1;
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
@@ -61,11 +99,11 @@ whileloop:
    
     char str[256] = {0};
     char* file;
-    int count = sscanf(r_msg, "GET /%s %*s\n", &str);
-    printf("%s\n", str);
+    int count = sscanf(r_msg, "GET %s %*s\n", &str);
+    printf("GET header: \n%s\n", str);
     int requestedFD = 0;
     if(strcmp("/", str) == 0) {
-      printf("root requested\n");
+      printf("root file requested\n");
       time_t t = time(NULL);
       struct tm *tm = localtime(&t);
       char s[64] = {0};
@@ -82,30 +120,75 @@ whileloop:
         char* saveptr;
         file = strtok_r(str, delim, &saveptr);
         char fileName[256] = {0};
-
-        requestedFD = open(file, O_RDONLY);
-        char* extension = strrchr(file, '.');
+        for (int i = 1; (file[i-1] != '\0')&&(i < 257); i++) {
+          fileName[i-1]=file[i];
+        }
+        requestedFD = open(fileName, O_RDONLY);
+        char* extension = strrchr(fileName, '.');
         char* kvp = strtok_r(0, delim, &saveptr);
-        printf("requested file:%s\nKVPtoken: %s\nFileExtension: %s\n",file, kvp, extension);
-        
+        printf("requested file:%s\nKVPtoken: %s\nFileExtension: %s\n",fileName, kvp, extension);
+        if (requestedFD == -1){
+          printf("File Not found..\n");
+          write(clisock, fofPage, sizeof(fofPage)-1);
+          pthread_exit(NULL);
+        }
+        struct stat st;
+        fstat(requestedFD, &st);
+        if (extensionHash(extension) != HTML_FILE) {
+          switch(extensionHash(extension)) {
+            case PNG_FILE:
+              //write(clisock, pngHeader, sizeof(pngHeader)-1);
+            //bool sendFileOverSocket(int fd, FILE* socket, char* formatHeader) {
+              sendFileOverSocket(requestedFD, clisock, pngHeader);
+              printf("PNG file requested\n");
+              break;
+            case LUA_FILE:
+              write(clisock, textHeader, sizeof(textHeader)-1);
+              printf("LuaFile requested, running luaTerp, to be inplemented...\n");
+              break;
+            default:
+              continue;
+          }
+        } else {
+          write(clisock, htmlHeader, sizeof(htmlHeader)-1);
+        }
+
+        long unsigned int accum = 0;
+        /*off_t* offset0;
+        offset* = 0;
+        for (int size_to_send = st.st_size; size_to_send > 0; ){
+          accum = sendfile(newsockd, fd, &offset, size_to_send);
+          if (rc <= 0){
+            perror("sendfile");
+            onexit(newsockd, sockd, fd, 3);
+          }
+        offset += rc;
+        size_to_send -= rc;
+        }*/
+        while (accum < st.st_size) {
+          accum += sendfile(clisock, requestedFD, 0, st.st_size);
+          printf("Writing with Acum Value: %li\n", accum);
+        }
+        char name[60]={0};
+        sprintf(name, "/proc/self/fd/%i", requestedFD);
+        char name2[60]={0};
+        readlink(name, name2, 60);
+        printf("File being sent over socket: %s\n", name2);
+       // close(requestedFD);
+       // printf("Thread closing\n");
+        //goto end;
     }
 
 
-    if (requestedFD == -1){
-      printf("File Not found..\n");
-      write(clisock, fofPage, sizeof(fofPage)-1);
-    }
+    
 
 
 
-    struct stat st;
-    fstat(requestedFD, &st);
-    write(clisock, htmlHeader, sizeof(htmlHeader)-1);
-    sendfile(clisock, requestedFD, 0, st.st_size);
-    close(requestedFD);
+    
     memset(r_msg, 0, r_msg_size);
     memset(str, 0, 256);
   }
+end:
   close(clisock);
   pthread_exit(NULL);
 }
