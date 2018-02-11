@@ -13,6 +13,9 @@
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 
+// TODO: Some string functions here are not thread safe, these need to be updated to either their thread safe counterparts, or to be used with a global mutex.
+
+
 #define PORT 5555
 #define MAX_BUFFER_SIZE 1024
 
@@ -37,6 +40,7 @@ whileloop:
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
       printf("Error reading from socket.\n");
+      //close(clisock);
       pthread_exit(NULL);
     } else if(bytesRead == 0) {
       if (returnZeroCount > 20) 
@@ -53,7 +57,7 @@ whileloop:
    
     char str[256] = {0};
     char* file;
-    int count = sscanf(r_msg, "GET %s %*s\n", &str);
+    int count = sscanf(r_msg, "GET /%s %*s\n", &str);
     printf("%s\n", str);
     int requestedFD = 0;
     if(strcmp("/", str) == 0) {
@@ -70,23 +74,24 @@ whileloop:
       memset(str, 0, 256);
       goto whileloop;
     } else {
-        const char delim[1] =  {'?'};
-        file = strtok(str, delim);
-        char str[256] = {0};
-        for (int i = 1; (file[i-1] != '\0')&&(i < 257); i++) {
-          str[i-1]=file[i];
-        }
-        requestedFD = open(str, O_RDONLY);
-        char* kvp = strtok(0, delim);
-        printf("requested file:%s\nKVPtoken: %s\n",str, kvp);
+        char delim[] =  {"?#"};
+        char* saveptr;
+        file = strtok_r(str, delim, &saveptr);
+        char fileName[256] = {0};
+        /*for (int i = 1; (file[i-1] != '\0')&&(i < 256); i++) {
+          fileName[i-1]=file[i];
+        }*/
+        requestedFD = open(file, O_RDONLY);
+        char* kvp = strtok_r(0, delim, &saveptr);
+        printf("requested file:%s\nKVPtoken: %s\n",file, kvp);
     }
 
 
     if (requestedFD == -1){
       printf("File Not found..\n");
       write(clisock, fofPage, sizeof(fofPage)-1);
-      close(clisock);
-      pthread_exit(NULL);
+      //close(clisock);
+      //pthread_exit(NULL);
     }
     struct stat st;
     fstat(requestedFD, &st);
@@ -119,13 +124,17 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
   memset((void *) &serv_addr, 0, sizeof(serv_addr));
-
+  printf("argc: %i\n", argc);
   serv_addr.sin_family = AF_INET;                 //Set address family(ipv4)
   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  //Set address header for any incomming address.
+
+  short int port;
   if (argc > 1) {
-    serv_addr.sin_port = htons(htonl(atoi(argv[2])));
+    port = atoi(argv[1]);
+    serv_addr.sin_port = htons(port);
   }else { 
     serv_addr.sin_port = htons(PORT);               //Set listening port.
+    port = PORT;
   }
   
 
@@ -135,11 +144,11 @@ int main(int argc, char* argv[]) {
     sleep(10);
     //exit(-1);
   }
-  printf("Binding to listeing port successfull\n");
+  printf("Binding to listeing port %i completed successfully\n", port);
   //Tell OS we would like to start listening on this socket, we're not going to create a connection to a specific address.
   //  We want to keep this open so that we can be available for anyone who wants to talk.
   //Second param is "backlog" of connections the OS will pool for us.
-  listen(sockfd, 5);
+  listen(sockfd, 20);
 
   for (;;) {  //Forever
     //How big is the header for internet address.
@@ -149,7 +158,7 @@ int main(int argc, char* argv[]) {
 
     if (newsockfd < 0) { 
       printf("Error accepting new client.");
-      exit(-1);
+      //exit(-1);
     }
     handleConnect(newsockfd);
   }
