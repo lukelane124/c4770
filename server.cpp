@@ -18,6 +18,8 @@
 
 const char webpage[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
+const char timepage[] =
+"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body><h1>This is the default file for Tommy's Server 0.0.1</h1><br><h2>%s</h2></body></html>\r\n\r\n\0";
 const char fofPage[] =
 "HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>404 Not Found</title></head><body><h1>Error 404</h1><br>File not found. Closing connection</body></html>\r\n\r\n\0";
 const char htmlHeader[] =
@@ -53,10 +55,20 @@ whileloop:
     char* file;
     int count = sscanf(r_msg, "GET %s %*s\n", &str);
     printf("%s\n", str);
-    int requestedFD;
+    int requestedFD = 0;
     if(strcmp("/", str) == 0) {
       printf("root requested\n");
-      write(clisock, webpage, sizeof(webpage)-1);
+      time_t t = time(NULL);
+      struct tm *tm = localtime(&t);
+      char s[64] = {0};
+      strftime(s, sizeof(s), "%c", tm);
+      char dateTime[512] = {0};
+      sprintf(dateTime, timepage, s);
+      printf("TimePage%s\n", dateTime);
+      write(clisock, dateTime, sizeof(dateTime)-1);
+      memset(r_msg, 0, r_msg_size);
+      memset(str, 0, 256);
+      goto whileloop;
     } else {
         const char delim[1] =  {'?'};
         file = strtok(str, delim);
