@@ -50,14 +50,15 @@ void* connectHandler(void* args) {
   size_t r_msg_size = 1024;
   char* r_msg = (char *) malloc(1024*sizeof(char));
   int bytesRead = 0;
-  while(1) {
+  bool cont = true;
+  while(cont) {
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
       printf("Error reading from socket.\n");
       exit(-2);
     } else if(bytesRead < r_msg_size) {
       printf("Size: %i\nMSG: %s\n", bytesRead, r_msg);
-      bytesRead = 0;
+     // bytesRead = 0;
       //break;
     } else {
       printf("Header toooo long, failed with too large an input.\n");
@@ -65,7 +66,9 @@ void* connectHandler(void* args) {
     }
     printf("Made it past \n");
     write(clisock, webpage, sizeof(webpage)-1);
-    break;
+    //memset(void *s, int c, size_t n)
+    // sets n bytes indexed starting at location s, with value c.
+    memset(r_msg, 0, r_msg_size);
   }
   shutdown(clisock, 2);
   //fputs(webpage, fp);
@@ -75,6 +78,7 @@ void* connectHandler(void* args) {
 }
 
 void handleConnect(int clisock) {
+  printf("Inside handleConnect\n");
   pthread_attr_t attribs;
   pthread_t thread;
   pthread_attr_init(&attribs);

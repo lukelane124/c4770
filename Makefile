@@ -5,5 +5,5 @@ all: server.o server.h
 clean:
 	rm *.o *.exe
 
-run: all
-	./server.exe 10000
+#run: all
+#	./server.exe 10000
