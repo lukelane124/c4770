@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/sendfile.h>
+#include <sys/stat.h>
 
 #define PORT 5555
 #define MAX_BUFFER_SIZE 1024
@@ -19,7 +20,8 @@ const char webpage[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
 const char fofPage[] =
 "HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>404 Not Found</title></head><body><h1>Error 404</h1><br>File not found. Closing connection</body></html>\r\n\r\n\0";
-
+const char htmlHeader[] =
+"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n";
 
 void* connectHandler(void* args) {
   int clisock = *((int*) args);
@@ -58,9 +60,13 @@ whileloop:
     } else {
         const char delim[1] =  {'?'};
         file = strtok(str, delim);
-        requestedFD = open(file, O_RDONLY);
+        char str[256] = {0};
+        for (int i = 1; (file[i-1] != '\0')&&(i < 257); i++) {
+          str[i-1]=file[i];
+        }
+        requestedFD = open(str, O_RDONLY);
         char* kvp = strtok(0, delim);
-        printf("requested file:%s\nKVPtoken: %s\n",file, kvp);
+        printf("requested file:%s\nKVPtoken: %s\n",str, kvp);
     }
 
 
@@ -70,9 +76,11 @@ whileloop:
       close(clisock);
       pthread_exit(NULL);
     }
-    
-    //sendfile(clisock, requestedFD, 0, 0);
-    
+    struct stat st;
+    fstat(requestedFD, &st);
+    write(clisock, htmlHeader, sizeof(htmlHeader)-1);
+    sendfile(clisock, requestedFD, 0, st.st_size);
+    close(requestedFD);
     memset(r_msg, 0, r_msg_size);
     memset(str, 0, 256);
   }
