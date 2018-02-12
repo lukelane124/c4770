@@ -1,3 +1,8 @@
+extern "C" {
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+}
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,6 +18,12 @@
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 
+
+#include <iostream>
+
+
+
+
 // TODO: Some string functions here are not thread safe, these need to be updated to either their thread safe counterparts, or to be used with a global mutex.
 
 
@@ -24,7 +35,7 @@
 #define LUA_FILE  3
 
 const char webpage[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body>This is the default file for Tommy's Server 0.0.1</body></html>\r\n\r\n\0";
+"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>%s</title></head><body>%s</body></html>\r\n\r\n\0";
 const char timepage[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body><h1>This is the default file for Tommy's Server 0.0.1</h1><br><h2>%s</h2></body></html>\r\n\r\n\0";
 const char fofPage[] =
@@ -35,6 +46,16 @@ const char pngHeader[] =
 "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\nContent-Type: image/png\r\nContent-Length: %i\r\n\r\n";
 const char textHeader[] =
 "HTTP/1.1 200 OK\r\nContent-Type: text/text; \r\n\r\n";
+
+static int HTML_OUT(lua_State *L){
+  int *fd = (int*) lua_touserdata(L, lua_upvalueindex(1));
+  const char* msg = (char*) lua_tostring(L, -1);
+  char out[102400] = {0};
+  sprintf(out, webpage, "HTML_OUT:\n", msg);
+  printf("Inside HTML_OUT:\n%s\n", out);
+  write(*fd, out, strlen(out)-1);
+
+}
 
 int extensionHash(char* str) {
   if (strncmp(str, ".html", 5) == 0){
@@ -136,19 +157,70 @@ whileloop:
         fstat(requestedFD, &st);
         if (extensionHash(extension) != HTML_FILE) {
           switch(extensionHash(extension)) {
-            case PNG_FILE:
+            case PNG_FILE:{
               //write(clisock, pngHeader, sizeof(pngHeader)-1);
+            
             //bool sendFileOverSocket(int fd, FILE* socket, char* formatHeader) {
               sendFileOverSocket(requestedFD, clisock, pngHeader);
               printf("PNG file requested\n");
               break;
-            case LUA_FILE:
-              write(clisock, textHeader, sizeof(textHeader)-1);
-              printf("LuaFile requested, running luaTerp, to be inplemented...\n");
+            }
+            case LUA_FILE:{
+              //write(clisock, textHeader, sizeof(textHeader)-1);
+              //printf("LuaFile requested, running luaTerp, to be inplemented...\n");
+              int result, ret, i;
+              double sum;
+              lua_State *L = luaL_newstate();
+              luaL_openlibs(L);
+              ret = luaL_loadfile(L, fileName);
+              if (ret) {
+                std::cerr << "Couldn't load file: " << lua_tostring(L, -1) << std::endl;
+                exit(-1);
+              }
+
+              lua_newtable(L);          
+              const char d[] = "&=";
+              char* savptr = NULL;
+              char* tmp = strtok_r(kvp, d, &savptr);
+              while(tmp != NULL) {
+                lua_pushstring(L, tmp);
+                tmp = strtok_r(NULL, d, &savptr);
+                lua_pushstring(L, tmp);
+                lua_settable(L, -3);
+                tmp = strtok_r(NULL, d, &savptr);
+              }
+
+
+             /*  for (int i = 0; i < 20; i += 2) {
+                tmp = strtok_r(kvpArray[i], eq, &savptr);
+              if (tmp == 0)
+                break;
+              lua_pushstring(L, tmp);
+              tmp = strtok_r(0 , '=', savptr);
+              lua_pushstring(L, tmp);
+              lua_pushstring(L, tmp);
+              lua_settable(L, -3);
+              }*/
+              lua_setglobal(L, "Info");
+              int *ud = (int *) lua_newuserdata(L, sizeof(int));
+              *ud=clisock;
+              lua_pushcclosure(L, HTML_OUT, 1);
+              lua_setglobal(L, "HTML_OUT");
+              result = lua_pcall(L, 0, 1, 0);
+              if (result) {
+                std::cerr << "Failed to run script: " << lua_tostring(L, -1) << std::endl;
+                printf("\nSome error in lua script call \"lua_pcall\"\n");
+                goto end;
+              }
+              lua_pop(L, 1);
+              lua_close(L);
+              st.st_size = -1;
               break;
-            default:
-              continue;
-          }
+            }
+            default:{}
+              
+          
+            }
         } else {
           write(clisock, htmlHeader, sizeof(htmlHeader)-1);
         }
