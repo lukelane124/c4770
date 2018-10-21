@@ -35,17 +35,17 @@ extern "C" {
 #define LUA_FILE  3
 
 const char webpage[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>%s</title></head><body>%s</body></html>\r\n\r\n\0";
+"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>%s</title></head><body>%s</body></html>\r\n\r\n\0";
 const char timepage[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body><h1>This is the default file for Tommy's Server 0.0.1</h1><br><h2>%s</h2></body></html>\r\n\r\n\0";
+"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Default</title></head><body><h1>This is the default file for Tommy's Server 0.0.1</h1><br><h2>%s</h2></body></html>\r\n\r\n\0";
 const char fofPage[] =
-"HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>404 Not Found</title></head><body><h1>Error 404</h1><br>File not found. Closing connection</body></html>\r\n\r\n\0";
+"HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>404 Not Found</title></head><body><h1>Error 404</h1><br>File not found. Closing connection</body></html>\r\n\r\n\0";
 const char htmlHeader[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/html; \r\n\r\n";
+"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/html; \r\n\r\n";
 const char pngHeader[] =
-"HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\nContent-Type: image/png\r\nContent-Length: %i\r\n\r\n";
+"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: image/png\r\nContent-Length: %i\r\n\r\n";
 const char textHeader[] =
-"HTTP/1.1 200 OK\r\nContent-Type: text/text; \r\n\r\n";
+"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/text; \r\n\r\n";
 
 static int HTML_OUT(lua_State *L){
   int *fd = (int*) lua_touserdata(L, lua_upvalueindex(1));
@@ -84,9 +84,9 @@ bool sendFileOverSocket(int fd, int socket, const char* formatHeader) {
   int sentBytes = 0;
   long int offset = 0;
   int remainData = st.st_size;
-  /*while(((sentBytes = sendfile(socket, fd, &offset, remainData)) > 0 && (remainData -= sentBytes) > 0)) {
+  while(((sentBytes = sendfile(socket, fd, &offset, remainData)) > 0 && (remainData -= sentBytes) > 0)) {
     printf("Server sent %d bytes from the file, offset is now: %d, and, %d remains to be sent.\n", sentBytes, offset, remainData);
-  }*/
+  }
  return true; 
 }
 
@@ -104,6 +104,7 @@ whileloop:
     bytesRead = read(clisock, r_msg, r_msg_size);
     if (bytesRead < 0) {
       printf("Error reading from socket.\n");
+      free(r_msg);
       pthread_exit(NULL);
     } else if(bytesRead == 0) {
       if (returnZeroCount > 20) 
@@ -155,8 +156,10 @@ whileloop:
         }
         struct stat st;
         fstat(requestedFD, &st);
-        if (extensionHash(extension) != HTML_FILE) {
-          switch(extensionHash(extension)) {
+        if (extensionHash(extension) != HTML_FILE) 
+        {
+          switch(extensionHash(extension)) 
+          {
             case PNG_FILE:{
               //write(clisock, pngHeader, sizeof(pngHeader)-1);
             
@@ -256,11 +259,13 @@ whileloop:
 
 
 
-    
+    //pthread_exit(NULL);
     memset(r_msg, 0, r_msg_size);
-    memset(str, 0, 256);
+    memset(str, 0,256);
+
   }
 end:
+free(r_msg);
   close(clisock);
   pthread_exit(NULL);
 }
@@ -308,7 +313,7 @@ int main(int argc, char* argv[]) {
   //Tell OS we would like to start listening on this socket, we're not going to create a connection to a specific address.
   //  We want to keep this open so that we can be available for anyone who wants to talk.
   //Second param is "backlog" of connections the OS will pool for us.
-  listen(sockfd, 20);
+  listen(sockfd, 10);
 
   for (;;) {  //Forever
     //How big is the header for internet address.
